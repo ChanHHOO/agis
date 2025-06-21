@@ -1,7 +1,14 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
+import { useState, useEffect } from "react";
+import { Link } from "react-router-dom";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -9,66 +16,73 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '@/components/ui/table'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Plus, Eye, Settings } from 'lucide-react'
-
-// 더미 데이터
-const mockScreens = [
-  {
-    screenId: 'SCR-001',
-    requirementId: 'REQ-001',
-    screenName: '사용자 로그인 페이지',
-    progressStatus: 'completed',
-    description: '사용자 인증을 위한 로그인 화면'
-  },
-  {
-    screenId: 'SCR-002',
-    requirementId: 'REQ-002',
-    screenName: '대시보드 메인 화면',
-    progressStatus: 'in-progress',
-    description: '사용자 대시보드 및 주요 지표 표시'
-  },
-  {
-    screenId: 'SCR-003',
-    requirementId: 'REQ-003',
-    screenName: '프로젝트 목록 페이지',
-    progressStatus: 'pending',
-    description: '프로젝트 목록 조회 및 관리'
-  },
-  {
-    screenId: 'SCR-004',
-    requirementId: 'REQ-004',
-    screenName: '사용자 프로필 설정',
-    progressStatus: 'in-progress',
-    description: '사용자 개인정보 및 설정 관리'
-  },
-  {
-    screenId: 'SCR-005',
-    requirementId: 'REQ-005',
-    screenName: '알림 센터',
-    progressStatus: 'pending',
-    description: '시스템 알림 및 메시지 관리'
-  }
-]
+} from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Search, PlusCircle, Settings } from "lucide-react";
+import { supabase } from "@/lib/supabase"; // Supabase 클라이언트 import
 
 const getStatusBadge = (status) => {
   const statusConfig = {
-    completed: { label: '완료', variant: 'default', className: 'bg-green-100 text-green-800' },
-    'in-progress': { label: '진행중', variant: 'secondary', className: 'bg-blue-100 text-blue-800' },
-    pending: { label: '대기', variant: 'outline', className: 'bg-gray-100 text-gray-800' }
-  }
-  
-  const config = statusConfig[status] || statusConfig.pending
+    completed: {
+      label: "완료",
+      variant: "default",
+      className: "bg-green-600 hover:bg-green-700",
+    },
+    "in-progress": {
+      label: "진행중",
+      variant: "secondary",
+      className: "bg-blue-500 hover:bg-blue-600 text-white",
+    },
+    pending: {
+      label: "대기",
+      variant: "outline",
+      className: "text-muted-foreground",
+    },
+  };
+
+  const config = statusConfig[status] || statusConfig.pending;
   return (
     <Badge variant={config.variant} className={config.className}>
       {config.label}
     </Badge>
-  )
-}
+  );
+};
 
 export function MainPage() {
-  const [screens] = useState(mockScreens)
+  const [screens, setScreens] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  useEffect(() => {
+    const fetchScreens = async () => {
+      try {
+        setLoading(true);
+        const { data, error } = await supabase
+          .from("Pages")
+          .select("id, screen_id, description, status, name");
+
+        if (error) {
+          throw error;
+        }
+
+        setScreens(data || []);
+      } catch (err) {
+        setError(err.message);
+        console.error("Error fetching screens:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchScreens();
+  }, []);
+
+  const filteredScreens = screens.filter(
+    (screen) =>
+      screen.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      screen.screen_id.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="space-y-6">
@@ -79,10 +93,20 @@ export function MainPage() {
             프론트엔드 개발이 필요한 화면 목록을 관리하고 진행상황을 확인하세요.
           </p>
         </div>
-        <Button className="flex items-center space-x-2">
-          <Plus className="w-4 h-4" />
-          <span>새 화면 추가</span>
+        <Button>
+          <PlusCircle className="w-4 h-4 mr-2" />새 화면 생성
         </Button>
+      </div>
+
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+        <Input
+          type="search"
+          placeholder="화면 ID 또는 이름으로 검색..."
+          className="pl-10"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </div>
 
       <Card>
@@ -93,96 +117,59 @@ export function MainPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>화면 ID</TableHead>
-                <TableHead>요구사항 ID</TableHead>
-                <TableHead>화면명</TableHead>
-                <TableHead>설명</TableHead>
-                <TableHead>진행상태</TableHead>
-                <TableHead className="text-right">작업</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {screens.map((screen) => (
-                <TableRow key={screen.screenId}>
-                  <TableCell className="font-medium">{screen.screenId}</TableCell>
-                  <TableCell>{screen.requirementId}</TableCell>
-                  <TableCell className="font-medium">{screen.screenName}</TableCell>
-                  <TableCell className="text-muted-foreground max-w-xs truncate">
-                    {screen.description}
-                  </TableCell>
-                  <TableCell>{getStatusBadge(screen.progressStatus)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                        className="flex items-center space-x-1"
-                      >
-                        <Link to={`/screen-assistant/${screen.screenId}`}>
-                          <Settings className="w-4 h-4" />
-                          <span>개발</span>
-                        </Link>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        asChild
-                        className="flex items-center space-x-1"
-                      >
-                        <Link to={`/review/${screen.screenId}`}>
-                          <Eye className="w-4 h-4" />
-                          <span>리뷰</span>
-                        </Link>
-                      </Button>
-                    </div>
-                  </TableCell>
+          {loading ? (
+            <p className="text-muted-foreground text-center">로딩 중...</p>
+          ) : error ? (
+            <p className="text-destructive text-center">오류: {error}</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>화면 ID</TableHead>
+                  <TableHead>화면명</TableHead>
+                  <TableHead>설명</TableHead>
+                  <TableHead>진행상태</TableHead>
+                  <TableHead className="text-right">작업</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {filteredScreens.length > 0 ? (
+                  filteredScreens.map((screen) => (
+                    <TableRow key={screen.id}>
+                      <TableCell className="font-medium">
+                        {screen.screen_id}
+                      </TableCell>
+                      <TableCell>{screen.name}</TableCell>
+                      <TableCell>{screen.description}</TableCell>
+                      <TableCell>{getStatusBadge(screen.status)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="sm" asChild>
+                          <Link
+                            to={`/screen-assistant/${screen.screen_id}`}
+                            className="flex items-center space-x-1"
+                          >
+                            <Settings className="w-4 h-4" />
+                            <span>개발 도우미</span>
+                          </Link>
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={4}
+                      className="text-center h-24 text-muted-foreground"
+                    >
+                      검색 결과가 없습니다.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
-
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">전체 화면</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{screens.length}</div>
-            <p className="text-xs text-muted-foreground">개발 대상 화면 수</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">진행중</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {screens.filter(s => s.progressStatus === 'in-progress').length}
-            </div>
-            <p className="text-xs text-muted-foreground">현재 개발중인 화면</p>
-          </CardContent>
-        </Card>
-        
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">완료</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {screens.filter(s => s.progressStatus === 'completed').length}
-            </div>
-            <p className="text-xs text-muted-foreground">개발 완료된 화면</p>
-          </CardContent>
-        </Card>
-      </div>
     </div>
-  )
+  );
 }
-

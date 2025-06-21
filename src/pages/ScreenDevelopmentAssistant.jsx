@@ -21,73 +21,117 @@ import {
   Zap,
 } from "lucide-react";
 import { FigmaImage } from "@/components/ui/FigmaImage";
+import { supabase } from "@/lib/supabase"; // supabase 클라이언트 import
 
-// 더미 데이터
-const mockScreenData = {
-  "SCR-001": {
-    screenId: "SCR-001",
-    screenName: "사용자 로그인 페이지",
-    figmaUrl:
-      "https://www.figma.com/file/OaFdNQeV9CabB9sxJoSYTZ/Untitled?type=design&node-id=117-336",
-    figmaFileId: "OaFdNQeV9CabB9sxJoSYTZ",
-    figmaNodeId: "117:336",
-    lastUpdated: "2024-01-15 14:30:00",
-    functionalSpec: {
-      overview: "사용자가 시스템에 로그인할 수 있는 인터페이스를 제공합니다.",
-      requirements: [
-        "이메일/사용자명과 비밀번호 입력 필드",
-        "로그인 버튼 및 폼 검증",
-        "비밀번호 찾기 링크",
-        "회원가입 링크",
-        "소셜 로그인 옵션 (Google, GitHub)",
-        "로그인 상태 유지 체크박스",
-      ],
-      acceptance: [
-        "유효한 자격증명으로 로그인 시 대시보드로 리다이렉트",
-        "잘못된 자격증명 시 에러 메시지 표시",
-        "빈 필드 제출 시 검증 메시지 표시",
-        "비밀번호 찾기 클릭 시 비밀번호 재설정 페이지로 이동",
-      ],
+// 더미 데이터 일부 유지 (추천 API)
+const mockApiData = {
+  recommendedApis: [
+    {
+      name: "Authentication API",
+      endpoint: "/api/auth/login",
+      method: "POST",
+      description: "사용자 로그인 인증",
+      params: ["email", "password"],
+      response: "JWT 토큰 및 사용자 정보",
     },
-    recommendedApis: [
-      {
-        name: "Authentication API",
-        endpoint: "/api/auth/login",
-        method: "POST",
-        description: "사용자 로그인 인증",
-        params: ["email", "password"],
-        response: "JWT 토큰 및 사용자 정보",
-      },
-      {
-        name: "Password Reset API",
-        endpoint: "/api/auth/reset-password",
-        method: "POST",
-        description: "비밀번호 재설정 요청",
-        params: ["email"],
-        response: "재설정 링크 전송 확인",
-      },
-      {
-        name: "Social Login API",
-        endpoint: "/api/auth/social",
-        method: "POST",
-        description: "소셜 로그인 처리",
-        params: ["provider", "token"],
-        response: "JWT 토큰 및 사용자 정보",
-      },
-    ],
-  },
+    {
+      name: "Password Reset API",
+      endpoint: "/api/auth/reset-password",
+      method: "POST",
+      description: "비밀번호 재설정 요청",
+      params: ["email"],
+      response: "재설정 링크 전송 확인",
+    },
+    {
+      name: "Social Login API",
+      endpoint: "/api/auth/social",
+      method: "POST",
+      description: "소셜 로그인 처리",
+      params: ["provider", "token"],
+      response: "JWT 토큰 및 사용자 정보",
+    },
+  ],
 };
 
 export function ScreenDevelopmentAssistant() {
   const { screenId } = useParams();
   const [screenData, setScreenData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [figmaConnected, setFigmaConnected] = useState(true);
 
   useEffect(() => {
-    if (screenId && mockScreenData[screenId]) {
-      setScreenData(mockScreenData[screenId]);
-    }
+    const fetchScreenData = async () => {
+      if (!screenId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+
+        // 1. 'Pages' 테이블에서 화면 정보 조회
+        const { data: pageData, error: pageError } = await supabase
+          .from("Pages")
+          .select("id, screen_id, description, file, node")
+          .eq("screen_id", screenId)
+          .single();
+
+        if (pageError) throw pageError;
+        if (!pageData) throw new Error("화면 정보를 찾을 수 없습니다.");
+
+        // 2. 'PageRequirements' 조인 테이블에서 'requirement_id' 조회
+        const { data: pageReqData, error: pageReqError } = await supabase
+          .from("PageRequirements")
+          .select("requirement_id")
+          .eq("page_id", pageData.id);
+
+        if (pageReqError) throw pageReqError;
+
+        const requirementIds = pageReqData.map((r) => r.requirement_id);
+
+        // 3. 'Requirements' 테이블에서 기능 명세 조회
+        let functionalSpec = { overview: "", requirements: [], acceptance: [] };
+        if (requirementIds.length > 0) {
+          const { data: reqData, error: reqError } = await supabase
+            .from("Requirements")
+            .select("overview, context")
+            .in("id", requirementIds);
+
+          if (reqError) throw reqError;
+
+          // 여러 요구사항 데이터를 하나로 합칩니다 (여기서는 첫번째 데이터를 사용).
+          if (reqData && reqData.length > 0) {
+            const firstReq = reqData[0];
+            functionalSpec = {
+              overview: firstReq.overview,
+              // context가 JSON 형태라고 가정합니다. { requirements: [...], acceptance: [...] }
+              requirements: firstReq.context?.requirements || [],
+              acceptance: firstReq.context?.acceptance || [],
+            };
+          }
+        }
+
+        // 4. 최종 데이터 조합
+        setScreenData({
+          screenId: pageData.screen_id,
+          screenName: pageData.description,
+          figmaFileId: pageData.file,
+          figmaNodeId: pageData.node,
+          figmaUrl: `https://www.figma.com/file/${pageData.file}?node-id=${pageData.node}`,
+          functionalSpec: functionalSpec,
+          recommendedApis: mockApiData.recommendedApis, // 임시 데이터 사용
+        });
+      } catch (err) {
+        console.error("Error fetching screen data:", err);
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchScreenData();
   }, [screenId]);
 
   const handleGenerateBaseCode = async () => {
@@ -103,10 +147,28 @@ export function ScreenDevelopmentAssistant() {
     alert("Figma 디자인을 새로고침했습니다.");
   };
 
-  if (!screenData) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <p className="text-muted-foreground">화면 정보를 불러오는 중...</p>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-destructive">오류: {error}</p>
+      </div>
+    );
+  }
+
+  if (!screenData) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <p className="text-muted-foreground">
+          요청한 화면({screenId})을 찾을 수 없습니다.
+        </p>
       </div>
     );
   }
