@@ -101,14 +101,10 @@ export function ScreenDevelopmentAssistant() {
 
           if (reqError) throw reqError;
 
-          // 여러 요구사항 데이터를 하나로 합칩니다 (여기서는 첫번째 데이터를 사용).
           if (reqData && reqData.length > 0) {
-            const firstReq = reqData[0];
             functionalSpec = {
-              overview: firstReq.overview,
-              // context가 JSON 형태라고 가정합니다. { requirements: [...], acceptance: [...] }
-              requirements: firstReq.context?.requirements || [],
-              acceptance: firstReq.context?.acceptance || [],
+              overview: reqData[0].overview,
+              requirements: reqData,
             };
           }
         }
@@ -299,27 +295,18 @@ export function ScreenDevelopmentAssistant() {
 
               <div>
                 <h3 className="text-lg font-semibold mb-2">기능 요구사항</h3>
-                <ul className="space-y-2">
-                  {screenData.functionalSpec.requirements.map((req, index) => (
-                    <li key={index} className="flex items-start space-x-2">
-                      <span className="text-primary">•</span>
-                      <span className="text-sm">{req}</span>
+                <ul className="space-y-4">
+                  {screenData.functionalSpec.requirements.map((req) => (
+                    <li key={req.id} className="space-y-1">
+                      <h4 className="font-medium flex items-start space-x-2">
+                        <span className="text-primary mt-1.5">•</span>
+                        <span>{req.overview}</span>
+                      </h4>
+                      <p className="text-sm text-muted-foreground pl-5">
+                        {req.context}
+                      </p>
                     </li>
                   ))}
-                </ul>
-              </div>
-
-              <div>
-                <h3 className="text-lg font-semibold mb-2">수락 기준</h3>
-                <ul className="space-y-2">
-                  {screenData.functionalSpec.acceptance.map(
-                    (criteria, index) => (
-                      <li key={index} className="flex items-start space-x-2">
-                        <span className="text-green-600">✓</span>
-                        <span className="text-sm">{criteria}</span>
-                      </li>
-                    )
-                  )}
                 </ul>
               </div>
             </TabsContent>
