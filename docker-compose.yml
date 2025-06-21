@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  # AGIS 프론트엔드 애플리케이션
+  agis-frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:80"
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - agis-network
+
+  # 개발용 서비스 (선택사항)
+  agis-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3001:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    command: pnpm run dev --host
+    networks:
+      - agis-network
+    profiles:
+      - dev
+
+  # 향후 백엔드 API 서버 (예시)
+  # agis-backend:
+  #   image: node:20-alpine
+  #   working_dir: /app
+  #   volumes:
+  #     - ./backend:/app
+  #   ports:
+  #     - "3001:3001"
+  #   environment:
+  #     - NODE_ENV=production
+  #   command: npm start
+  #   networks:
+  #     - agis-network
+  #   depends_on:
+  #     - agis-db
+
+  # 향후 데이터베이스 (예시)
+  # agis-db:
+  #   image: postgres:15-alpine
+  #   environment:
+  #     POSTGRES_DB: agis
+  #     POSTGRES_USER: agis_user
+  #     POSTGRES_PASSWORD: agis_password
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+  #   networks:
+  #     - agis-network
+
+networks:
+  agis-network:
+    driver: bridge
+
+# volumes:
+#   postgres_data:
+

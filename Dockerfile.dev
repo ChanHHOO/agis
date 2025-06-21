@@ -1,0 +1,24 @@
+# 개발용 Dockerfile
+FROM node:20-alpine
+
+# 작업 디렉토리 설정
+WORKDIR /app
+
+# pnpm 설치
+RUN npm install -g pnpm
+
+# package.json과 pnpm-lock.yaml 복사
+COPY package.json pnpm-lock.yaml ./
+
+# 의존성 설치
+RUN pnpm install
+
+# 소스 코드 복사
+COPY . .
+
+# 포트 5173 노출 (Vite 개발 서버)
+EXPOSE 5173
+
+# 개발 서버 시작
+CMD ["pnpm", "run", "dev", "--host"]
+
