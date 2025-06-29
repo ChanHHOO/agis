@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { FigmaImage } from "@/components/ui/FigmaImage";
 import { supabase } from "@/lib/supabase"; // supabase 클라이언트 import
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { docco } from "react-syntax-highlighter/dist/esm/styles/hljs";
 
 // 더미 데이터 일부 유지 (추천 API)
 const mockApiData = {
@@ -60,6 +62,7 @@ export function ScreenDevelopmentAssistant() {
   const [error, setError] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [figmaConnected, setFigmaConnected] = useState(true);
+  const [generatedCode, setGeneratedCode] = useState("");
 
   useEffect(() => {
     const fetchScreenData = async () => {
@@ -133,10 +136,26 @@ export function ScreenDevelopmentAssistant() {
   const handleGenerateBaseCode = async () => {
     setIsGenerating(true);
     // 실제로는 AI API를 호출하여 코드를 생성
+    // 여기서는 예시 코드로 대체
+    const code = `import React from 'react';
+import './LoginPage.css';
+
+export default function LoginPage() {
+  return (
+    <div className="login-container">
+      <h1>로그인</h1>
+      <form>
+        <input type="text" placeholder="이메일 또는 아이디" />
+        <input type="password" placeholder="비밀번호" />
+        <button type="submit">로그인</button>
+      </form>
+    </div>
+  );
+}`;
     setTimeout(() => {
+      setGeneratedCode(code);
       setIsGenerating(false);
-      alert("베이스 코드가 생성되었습니다! 다운로드를 시작합니다.");
-    }, 3000);
+    }, 1200);
   };
 
   const handleRefreshFigma = () => {
@@ -238,34 +257,44 @@ export function ScreenDevelopmentAssistant() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <h4 className="font-medium">생성될 코드 구성요소:</h4>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• React 컴포넌트 구조</li>
-                <li>• Tailwind CSS 스타일링</li>
-                <li>• 폼 검증 로직</li>
-                <li>• API 연동 코드</li>
-                <li>• 반응형 디자인</li>
-              </ul>
-            </div>
-            <Separator />
-            <Button
-              onClick={handleGenerateBaseCode}
-              disabled={isGenerating}
-              className="w-full"
-            >
-              {isGenerating ? (
-                <>
-                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
-                  코드 생성 중...
-                </>
-              ) : (
-                <>
-                  <Zap className="w-4 h-4 mr-2" />
-                  베이스 코드 생성
-                </>
-              )}
-            </Button>
+            {generatedCode ? (
+              <div className="rounded-lg border bg-muted p-4 overflow-x-auto">
+                <SyntaxHighlighter language="javascript" style={docco}>
+                  {generatedCode}
+                </SyntaxHighlighter>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2">
+                  <h4 className="font-medium">생성될 코드 구성요소:</h4>
+                  <ul className="text-sm text-muted-foreground space-y-1">
+                    <li>• React 컴포넌트 구조</li>
+                    <li>• Tailwind CSS 스타일링</li>
+                    <li>• 폼 검증 로직</li>
+                    <li>• API 연동 코드</li>
+                    <li>• 반응형 디자인</li>
+                  </ul>
+                </div>
+                <Separator />
+                <Button
+                  onClick={handleGenerateBaseCode}
+                  disabled={isGenerating}
+                  className="w-full"
+                >
+                  {isGenerating ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      코드 생성 중...
+                    </>
+                  ) : (
+                    <>
+                      <Zap className="w-4 h-4 mr-2" />
+                      베이스 코드 생성
+                    </>
+                  )}
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
