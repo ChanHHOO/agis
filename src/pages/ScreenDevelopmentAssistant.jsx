@@ -24,6 +24,8 @@ import { FigmaImage } from "@/components/ui/FigmaImage";
 import { supabase } from "@/lib/supabase"; // supabase 클라이언트 import
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { docco } from "react-syntax-highlighter/dist/esm/styles/hljs";
+const CLAUDE_API_KEY = import.meta.env.VITE_CLAUDE_API_KEY; // .env에 저장
+const FIGMA_TOKEN = import.meta.env.VITE_FIGMA_TOKEN;
 
 // 더미 데이터 일부 유지 (추천 API)
 const mockApiData = {
@@ -55,6 +57,58 @@ const mockApiData = {
   ],
 };
 
+async function fetchClaudeBaseCode({ systemPrompt, userContentArray }) {
+  const response = await fetch("/api/claude/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": CLAUDE_API_KEY,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: "claude-3-opus-20240229",
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: userContentArray,
+        },
+      ],
+    }),
+  });
+  const data = await response.json();
+  const match = data.content[0]?.text?.match(/```[a-zA-Z]*\n([\s\S]*?)```/);
+  return match ? match[1].trim() : data.content[0]?.text?.trim();
+}
+
+async function getFigmaImageBase64({ fileId, nodeId, figmaApiKey }) {
+  // 1. Figma API로 진짜 이미지 URL 얻기
+  const url = `https://api.figma.com/v1/images/${fileId}?ids=${nodeId}&format=png`;
+  const response = await fetch(url, {
+    headers: { "X-Figma-Token": figmaApiKey },
+  });
+  const data = await response.json();
+  const imageUrl = data.images[nodeId];
+  if (!imageUrl) throw new Error("Figma 이미지 URL을 가져올 수 없습니다.");
+
+  // 2. 이미지 URL을 fetch해서 base64 변환
+  const imgRes = await fetch(imageUrl);
+  const blob = await imgRes.blob();
+  if (!blob.type.startsWith("image/"))
+    throw new Error("이미지 파일이 아닙니다.");
+
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+  return { base64, mediaType: blob.type };
+}
+
 export function ScreenDevelopmentAssistant() {
   const { screenId } = useParams();
   const [screenData, setScreenData] = useState(null);
@@ -63,6 +117,7 @@ export function ScreenDevelopmentAssistant() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [figmaConnected, setFigmaConnected] = useState(true);
   const [generatedCode, setGeneratedCode] = useState("");
+  const [figmaImageUrl, setFigmaImageUrl] = useState("");
 
   useEffect(() => {
     const fetchScreenData = async () => {
@@ -135,27 +190,55 @@ export function ScreenDevelopmentAssistant() {
 
   const handleGenerateBaseCode = async () => {
     setIsGenerating(true);
-    // 실제로는 AI API를 호출하여 코드를 생성
-    // 여기서는 예시 코드로 대체
-    const code = `import React from 'react';
-import './LoginPage.css';
+    setGeneratedCode("");
+    const { base64, mediaType } = await getFigmaImageBase64({
+      fileId: screenData.figmaFileId,
+      nodeId: screenData.figmaNodeId,
+      figmaApiKey: FIGMA_TOKEN,
+    });
+    console.log(mediaType);
+    try {
+      const systemPrompt = `
+        당신은 프론트엔드 개발을 위한 AI 코드 생성 도우미입니다.
+        아래의 Figma 화면 정보와 기능 명세를 참고하여, 바로 붙여넣어 사용할 수 있는 React 컴포넌트 코드를 생성하세요.
+        - 코드에는 반드시 JSX와 Tailwind CSS를 사용하세요.
+        - 폼 검증, API 연동, 반응형 레이아웃 등 명세에 포함된 기능을 최대한 반영하세요.
+        - 불필요한 설명이나 주석 없이, 코드만 반환하세요.
+        
+      `.trim();
 
-export default function LoginPage() {
-  return (
-    <div className="login-container">
-      <h1>로그인</h1>
-      <form>
-        <input type="text" placeholder="이메일 또는 아이디" />
-        <input type="password" placeholder="비밀번호" />
-        <button type="submit">로그인</button>
-      </form>
-    </div>
-  );
-}`;
-    setTimeout(() => {
+      const userContentArray = [
+        {
+          type: "text",
+          text: `
+            첨부된 Figma 이미지를 참고하여 화면 디자인을 참고하세요.
+            화면명: ${screenData.screenName}
+            기능 명세:
+            ${screenData.functionalSpec.requirements
+              .map((req, i) => `- ${req.overview}: ${req.context}`)
+              .join("\n")}
+                  `.trim(),
+        },
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: mediaType,
+            data: base64,
+          },
+        },
+      ];
+
+      const code = await fetchClaudeBaseCode({
+        systemPrompt,
+        userContentArray,
+      });
       setGeneratedCode(code);
+    } catch (err) {
+      setGeneratedCode("// 코드 생성 실패: " + err.message);
+    } finally {
       setIsGenerating(false);
-    }, 1200);
+    }
   };
 
   const handleRefreshFigma = () => {
@@ -208,7 +291,7 @@ export default function LoginPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Figma 디자인 섹션 */}
-        <Card>
+        <Card className="h-[70vh] flex flex-col">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Figma className="w-5 h-5" />
@@ -218,11 +301,12 @@ export default function LoginPage() {
               실시간으로 Figma 디자인 변경사항이 반영됩니다.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="flex-1 overflow-auto">
             {screenData && (
               <FigmaImage
                 fileId={screenData.figmaFileId}
                 nodeId={screenData.figmaNodeId}
+                setFigmaImageUrl={setFigmaImageUrl}
               />
             )}
 
@@ -246,7 +330,7 @@ export default function LoginPage() {
         </Card>
 
         {/* 코드 생성 섹션 */}
-        <Card>
+        <Card className="h-[70vh] flex flex-col">
           <CardHeader>
             <CardTitle className="flex items-center space-x-2">
               <Code className="w-5 h-5" />
@@ -256,7 +340,7 @@ export default function LoginPage() {
               AI가 Figma 디자인과 기능 명세를 바탕으로 베이스 코드를 생성합니다.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="flex-1 overflow-auto">
             {generatedCode ? (
               <div className="rounded-lg border bg-muted p-4 overflow-x-auto">
                 <SyntaxHighlighter language="javascript" style={docco}>
