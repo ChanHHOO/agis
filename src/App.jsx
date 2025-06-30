@@ -4,6 +4,7 @@ import { MainPage } from "./pages/MainPage";
 import { ScreenDevelopmentAssistant } from "./pages/ScreenDevelopmentAssistant";
 import { ReviewPage } from "./pages/ReviewPage";
 import { CreateScreenPage } from "@/pages/CreateScreenPage";
+import { CreateRequirementPage } from "@/pages/CreateRequirementPage";
 import "./App.css";
 
 function App() {
@@ -20,6 +21,10 @@ function App() {
             />
             <Route path="/review/:screenId?" element={<ReviewPage />} />
             <Route path="/create-screen" element={<CreateScreenPage />} />
+            <Route
+              path="/create-requirement"
+              element={<CreateRequirementPage />}
+            />
           </Routes>
         </main>
       </div>

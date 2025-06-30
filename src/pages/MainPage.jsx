@@ -93,11 +93,19 @@ export function MainPage() {
             프론트엔드 개발이 필요한 화면 목록을 관리하고 진행상황을 확인하세요.
           </p>
         </div>
-        <Button asChild>
-          <Link to="/create-screen">
-            <PlusCircle className="w-4 h-4 mr-2" />새 화면 생성
-          </Link>
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Button asChild>
+            <Link to="/create-screen">
+              <PlusCircle className="w-4 h-4 mr-2" />새 화면 생성
+            </Link>
+          </Button>
+          <Button asChild>
+            <Link to="/create-requirement">
+              <PlusCircle className="w-4 h-4 mr-2" />
+              요구사항 생성
+            </Link>
+          </Button>
+        </div>
       </div>
 
       <div className="relative">
